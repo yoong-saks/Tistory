@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<style>
+     @font-face {
+          font-family: 'DungGeunMo';
+          src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff') format('woff');
+          font-weight: normal;
+          font-style: normal;
+     }
+
+     html,
+     body {
+         margin: 0;
+         padding: 0;
+         height: 100%;
+     }
+
+     body {
+         color: white;
+         background-color: #000;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         overflow: hidden;
+     }
+
+     canvas {
+         flex-shrink: 0;
+         background-color: #000;
+         object-fit: contain;
+         width: 100% !important;
+     }
+
+     .crisp {
+         image-rendering: -moz-crisp-edges;
+         image-rendering: -webkit-crisp-edges;
+         image-rendering: pixelated;
+     }
+ </style>
+<head>
+     <meta charset="utf-8">
+     <title>융삭스 미니게임</title>
+</head>
+
+<body>
+     <canvas id="canvas" class="crisp" width="560" height="400" style="background:black";>
+         이 브라우저는 캔버스를 지원하지 않습니다.
+     </canvas> 
+     <script>
+         var canvas;
+         var ctx;
+         // 게임의 상태
+         var STATE_WAIT = 0;
+         var STATE_RUN = 1;
+         var STATE_GAMEOVER = 2;
+         var state = STATE_WAIT;
+         // 우주선
+         var spaceShip;
+         var socksLogo;
+         var sx, sy;
+         var SW=13, SH=16;
+         var angle = 0;
+
+         // 운석
+         var arMete = new Array();
+         var meteColor = [ "yellow", "lightgreen", "gray", "blue", "orange", "red" ];
+         var NUM = 50;
+         var checkDouble = true; //운석 추가 제어 변수
+
+         // 키 눌림 상태
+         var keyPressed = [];
+
+         // 경과 시간
+         var oldTime;
+         var startTime;
+         var totalTime;
+
+         window.onload = function() {
+              canvas = document.getElementById("canvas");
+              if (canvas == null || canvas.getContext == null) return;
+              ctx = canvas.getContext("2d");
+          
+              spaceShip = new Image();
+              spaceShip.src = "spaceship.png";
+              socksLogo = new Image();
+              socksLogo.src = "dot-logo.png"
+              setInterval(runGame, 20);
+         }
+
+         window.onkeydown = function(e) {
+              keyPressed[e.keyCode] = true;
+         }
+
+         window.onkeyup = function(e) {
+              keyPressed[e.keyCode] = false;
+         }
+
+         var meteorInterval;
+          // 새로운 운석 생성 함수
+          function createMeteor() {
+               arMete.push({
+                    x: Math.random() * canvas.width,
+                    y: (arMete.length % 2 == 0 ? 0 : canvas.height),
+                    vx: Math.random() * 200 - 100,
+                    vy: Math.random() * 200 - 100,
+                    color: 0
+               });
+          }
+          function createInitialMeteors() {
+               for (var i = 0; i < (NUM/2); i++) {
+                    arMete.push({
+                         x: Math.random() * canvas.width,
+                         // i가 15 이하면 아래쪽에 생성, 15 이상이면 위쪽에 생성
+                         y: (i < NUM / 4 ? 0 : canvas.height),
+                         vx: Math.random() * 200 - 100,
+                         vy: Math.random() * 200 - 100,
+                         color: 0
+                    });
+               }
+
+               for (var i = 0; i < (NUM/2); i++) {
+                    arMete.push({
+                         x: (i < NUM / 4 ? 0 : canvas.width),
+                         y: Math.random() * canvas.height,
+                         vx: Math.random() * 200 - 100,
+                         vy: Math.random() * 200 - 100,
+                         color: 0
+                    });
+               }
+          }
+
+         // 게임 시작. 운석 난수로 배치하고 시간 리셋
+         function startGame() {
+              arMete.length = 0;
+              /**
+              for (var i = 0;i < NUM; i++) {
+                   arMete.push({
+                        x:Math.random() * canvas.width,
+                        y: (i < NUM/2 ? 20 : canvas.height-20),
+                       vx:Math.random() * 200 - 100,
+                        vy:Math.random() * 200 - 100,
+                        color:Math.floor(Math.random() * 5)
+                   });
+              }
+              **/
+              createInitialMeteors(); // 초기에는 60개의 운석을 생성
+              
+
+              sx = canvas.width/2;
+              sy = canvas.height/2;
+              startTime = getTime();
+              oldTime = getTime();
+         }
+
+         // 현재 시간 구함
+         function getTime() {
+              var date = new Date();
+              var time = date.getTime();
+              delete date;
+              return time;
+         }
+
+         // 게임 진행
+         function runGame() {
+              switch (state) {
+              case STATE_WAIT:
+              case STATE_GAMEOVER:
+                   if (keyPressed[13] == true) {
+                        if (spaceShip.complete == false) return;
+                        startGame();
+                        state = STATE_RUN;
+                   }
+                   break;
+              case STATE_RUN:
+                   if (keyPressed[87]) {
+                         if (sy - 3 >= 0 + (SH/2)) { // 위로 이동
+                              sy -= 3;
+                         }
+                   }
+                   if (keyPressed[83]) {
+                         if (sy + 3 <= canvas.height - (SH/2)) { // 아래로 이동
+                              sy += 3;
+                         }
+                   }
+                   if (keyPressed[65]) {
+                    angle = -3; // 틸트
+                         if (sx >= 0 + (SH/2)) { // 왼쪽으로 이동
+                              sx -= 3;
+                         }
+                   }
+                   if (keyPressed[68]) {
+                    angle = 3; //틸트
+                         if (sx + 3 <= canvas.width - (SW/2)) { // 오른쪽으로 이동
+                              sx += 3;
+                         }
+                   }
+                   if (!keyPressed[65] && !keyPressed[68]) {
+                    angle = 0;
+                   }
+
+                   // 경과 시간 구함
+                   var ellapse = getTime() -oldTime;
+                   oldTime = getTime();
+                   
+                   // 경과 시간마다 운석 추가
+                   if (Math.floor(totalTime) % 2 === 0 && Math.floor(totalTime) != 0) {
+                         if (checkDouble == false) {
+                              createMeteor();
+                              checkDouble = true;
+                         }
+                   }
+                   if (Math.floor(totalTime) % 2 === 1) {
+                         checkDouble = false;
+                   }
+                   // 운석의 이동
+                   for (var i = 0;i < (arMete.length); i++) {
+                        var mx = arMete[i].vx * ellapse / 1000;
+                        var my = arMete[i].vy * ellapse / 1000;
+                        arMete[i].x += mx;
+                        arMete[i].y += my;
+                        if (arMete[i].x > canvas.width) arMete[i].x=0;
+                        if (arMete[i].x < 0) arMete[i].x=canvas.width;
+                        if (arMete[i].y > canvas.height) arMete[i].y=0;
+                        if (arMete[i].y < 0) arMete[i].y=canvas.height;
+
+                         /** 유도 운석 알고리즘
+                               // 현재 운석의 위치
+                              var mx = arMete[i].x;
+                              var my = arMete[i].y;
+
+                              // 운석이 우주선을 향해 이동하도록 방향 벡터를 계산
+                              var dx = sx - mx;
+                              var dy = sy - my;
+                              var distance = Math.sqrt(dx * dx + dy * dy);
+
+                              // 운석의 이동 속도
+                              var speed = 2; // 조절 가능
+
+                              // 방향 벡터를 정규화하여 속도에 곱해 이동량 계산
+                              var mxMove = (dx / distance) * speed;
+                              var myMove = (dy / distance) * speed;
+
+                              // 운석 이동
+                              arMete[i].x += mxMove;
+                              arMete[i].y += myMove;
+
+                              // 운석이 캔버스 밖으로 나가면 재위치 지정
+                              if (arMete[i].x > canvas.width) arMete[i].x = 0;
+                              if (arMete[i].x < 0) arMete[i].x = canvas.width;
+                              if (arMete[i].y > canvas.height) arMete[i].y = 0;
+                              if (arMete[i].y < 0) arMete[i].y = canvas.height; 
+                         **/
+
+
+
+                        
+                        // 충돌 판정
+                        var mx = arMete[i].x;
+                        var my = arMete[i].y;
+                        if (mx > sx-SW/2 && mx < sx+SW/2
+                            && my > sy-SH/2 && my < sy+SH/2) {
+                            state = STATE_GAMEOVER;
+                            break;
+                        }
+                        
+
+                   }                
+                   break;
+
+              }
+
+              draw();
+
+         }
+
+ 
+
+         // 문자열 출력 함수
+
+         function drawText(ctx, text, x, y, font, color, align, base) {
+
+              if (font != undefined) ctx.font = font;
+
+              if (color != undefined) ctx.fillStyle = color;
+
+              if (align != undefined) ctx.textAlign = align;
+
+              if (base != undefined) ctx.textBaseline = base;
+
+              ctx.fillText(text, x, y);
+
+         }
+
+        
+
+         // 화면 그림
+
+         function draw() {
+
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+              switch (state) {
+
+              case STATE_WAIT:
+
+                    // 초기화면 로고 세팅
+                    newLogoWidth = socksLogo.width/2
+                    newLogoHeight = socksLogo.height/2
+                    ctx.drawImage(socksLogo, sx-newLogoWidth/2, sy-newLogoHeight/2 -110, newLogoWidth, newLogoHeight);
+                    
+                   drawText(ctx, "Meteor Dash", canvas.width/2 + 2, canvas.height/2 - 88,
+
+                        "bold 30px 'DungGeunMo', arial ", "red", "center", "middle"); 
+                   drawText(ctx, "Meteor Dash", canvas.width/2 - 2, canvas.height/2 - 92,
+
+                        "bold 30px 'DungGeunMo', arial ", "blue", "center", "middle"); 
+                   drawText(ctx, "Meteor Dash", canvas.width/2, canvas.height/2 - 90,
+
+                        "bold 30px 'DungGeunMo', arial ", "yellow", "center", "middle");
+
+                   drawText(ctx, "PUSH ENTER START !",  canvas.width/2, canvas.height - 100, 
+                   
+                         
+                        "20px 'DungGeunMo', arial", "white");
+                        
+                    // 초기화면 우주선 세팅    
+                    sx = canvas.width/2;
+                    sy = canvas.height/2;
+                    ctx.drawImage(spaceShip, sx-SW/2, sy-SH/2);
+                    
+                    
+
+                   break;
+                   
+
+              case STATE_RUN:
+
+              case STATE_GAMEOVER:
+
+                   // 운석 그림
+
+                   for (var i = 0;i < arMete.length; i++) {
+
+                        ctx.beginPath();
+
+                        ctx.arc(arMete[i].x, arMete[i].y,1.5,0,2*Math.PI);
+
+                        ctx.fillStyle=meteColor[arMete[i].color];
+
+                        ctx.fill();
+
+                   }
+
+                  
+
+                   // 우주선 그림
+
+                   ctx.save();
+
+                   ctx.translate(sx, sy);
+
+                   ctx.rotate(angle * Math.PI / 180); //회전
+                   ctx.transform(1, Math.tan(angle * Math.PI / 180), 0, 1, 0, 0); //틸트
+
+                   ctx.translate(-sx, -sy);
+
+                   ctx.drawImage(spaceShip, sx-SW/2, sy-SH/2);
+
+                   ctx.restore();
+
+                  
+
+                   if (state == STATE_GAMEOVER) {
+
+                        drawText(ctx, "Game Over", canvas.width/2, canvas.height/2,
+                            "30px 'DungGeunMo', arial", "white", "center", "middle");
+
+                   } else {
+
+                        // 경과 시간 갱신
+
+                        totalTime = (getTime() - startTime) / 1000;
+
+                   }
+
+ 
+
+
+                   // 경과시간 표시 범위를 0.01로 고정하는 함수
+                   function roundToTwoDecimalPlaces(number) {
+                         return (Math.round(number * 100) / 100).toFixed(2);
+                   }
+
+                   // 경과 시간 표시
+                   drawText(ctx, roundToTwoDecimalPlaces(totalTime) + "초", canvas.width - 8, 13,
+
+                        "12px arial", "white", "right", "middle");
+                   // 현재 운석 개수 표시
+                   drawText(ctx, "총알 : " + arMete.length, canvas.width/2 , 13, "12px arial", "white", "center", "middle");
+                   break;
+
+              }
+
+         }
+
+     </script>
+
+</body>
+
+</html>
+
